@@ -1,0 +1,408 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  profiles:
+    active: dev
+  
+  # Spring Cloud Gateway Configuration
+  cloud:
+    gateway:
+      # HTTP Client Configuration
+      httpclient:
+        pool:
+          type: ELASTIC
+          max-connections: 100
+          max-idle-time: 30000
+          max-life-time: 60000
+          acquire-timeout: 10000
+        compression: true
+        response-timeout: 30s
+        connect-timeout: 10s
+        
+      # Global CORS Configuration отключена для избежания дублирования
+      # globalcors:
+      #   cors-configurations:
+      #     '[/**]':
+      #       allowedOriginPatterns: 
+      #         - "http://localhost:*"
+      #         - "http://127.0.0.1:*"
+      #         - "https://tasktracker-frontend.com"
+      #       allowedMethods:
+      #         - GET
+      #         - POST
+      #         - PUT
+      #         - DELETE
+      #         - OPTIONS
+      #         - HEAD
+      #         - PATCH
+      #       allowedHeaders:
+      #         - "*"
+      #       allowCredentials: true
+      #       maxAge: 3600
+      
+      # Route Configuration
+      routes:
+        # Auth Service Routes
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-circuit-breaker
+                fallbackUri: forward:/fallback/auth
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 50
+                  maxBackoff: 500
+                  factor: 2
+
+        # Task Service Routes
+        - id: task-service
+          uri: lb://task-service
+          predicates:
+            - Path=/tasks/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: task-circuit-breaker
+                fallbackUri: forward:/fallback/tasks
+            - name: AuthenticationFilter
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST,PUT,DELETE
+                backoff:
+                  firstBackoff: 50
+                  maxBackoff: 500
+                  factor: 2
+
+        # Audit Service Routes
+        - id: audit-service
+          uri: lb://audit-service
+          predicates:
+            - Path=/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: audit-circuit-breaker
+                fallbackUri: forward:/fallback/audit
+            - name: AuthenticationFilter
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST,DELETE
+                backoff:
+                  firstBackoff: 50
+                  maxBackoff: 500
+                  factor: 2
+
+        # Notification Service Routes
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notification-circuit-breaker
+                fallbackUri: forward:/fallback/notification
+            - name: AuthenticationFilter
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST,DELETE
+                backoff:
+                  firstBackoff: 50
+                  maxBackoff: 500
+                  factor: 2
+
+        # Frontend static files
+        - id: frontend-static
+          uri: http://localhost:3000
+          predicates:
+            - Path=/
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /
+                replacement: /
+
+        # Actuator Endpoints for Service Health Monitoring
+        - id: auth-actuator
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/actuator/auth/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/auth/(?<segment>.*)
+                replacement: /actuator/${segment}
+
+        - id: task-actuator
+          uri: http://task-service:8082
+          predicates:
+            - Path=/actuator/task/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/task/(?<segment>.*)
+                replacement: /actuator/${segment}
+
+        - id: audit-actuator
+          uri: http://audit-service:8083
+          predicates:
+            - Path=/actuator/audit/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/audit/(?<segment>.*)
+                replacement: /actuator/${segment}
+
+        - id: notification-actuator
+          uri: http://notification-service:8084
+          predicates:
+            - Path=/actuator/notification/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/notification/(?<segment>.*)
+                replacement: /actuator/${segment}
+
+      # Discovery Configuration
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+          
+      # Load Balancer Configuration
+      loadbalancer:
+        ribbon:
+          enabled: false
+          
+  # Redis Configuration
+  redis:
+    host: localhost
+    port: 6379
+    password: 
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1
+
+  # Security Configuration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/auth
+
+# Service Discovery Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    enabled: false  # Отключаем пока не настроим Eureka
+  instance:
+    prefer-ip-address: true
+
+# JWT Configuration
+jwt:
+  secret: gateway-service-secret-key-for-jwt-token-validation
+  expiration: 86400000
+  header: Authorization
+  prefix: Bearer
+
+# Service URLs (fallback if service discovery is not available)
+services:
+  auth-service:
+    url: http://localhost:8081
+  task-service:
+    url: http://localhost:8082
+  audit-service:
+    url: http://localhost:8083
+
+# Circuit Breaker Configuration
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        permitted-number-of-calls-in-half-open-state: 3
+        wait-duration-in-open-state: 60s
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 100
+        slow-call-duration-threshold: 60s
+    instances:
+      auth-circuit-breaker:
+        base-config: default
+      task-circuit-breaker:
+        base-config: default
+      audit-circuit-breaker:
+        base-config: default
+
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 3s
+    instances:
+      auth-circuit-breaker:
+        base-config: default
+      task-circuit-breaker:
+        base-config: default
+      audit-circuit-breaker:
+        base-config: default
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        resilience4j.circuitbreaker.calls: true
+
+# Logging Configuration
+logging:
+  level:
+    com.tasktracker.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
+    org.springframework.web.reactive: INFO
+    reactor.netty: INFO
+    io.github.resilience4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/gateway-service.log
+
+# Rate Limiting Configuration
+rate-limiting:
+  enabled: true
+  default-requests-per-second: 100
+  burst-capacity: 200
+  services:
+    auth-service:
+      requests-per-second: 50
+      burst-capacity: 100
+    task-service:
+      requests-per-second: 200
+      burst-capacity: 400
+    audit-service:
+      requests-per-second: 50
+      burst-capacity: 100
+
+---
+# Docker Profile
+spring:
+  config:
+    activate:
+      on-profile: docker
+  
+  cloud:
+    gateway:
+      routes:
+        # Frontend static files
+        - id: frontend-static
+          uri: http://host.docker.internal:3000
+          predicates:
+            - Path=/
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /
+                replacement: /
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/auth/**
+        - id: task-service
+          uri: http://task-service:8082
+          predicates:
+            - Path=/tasks/**
+        - id: audit-service
+          uri: http://audit-service:8083
+          predicates:
+            - Path=/audit/**
+        - id: notification-service
+          uri: http://notification-service:8084
+          predicates:
+            - Path=/notification/**
+  
+  redis:
+    host: redis
+    port: 6379
+
+services:
+  auth-service:
+    url: http://auth-service:8081
+  task-service:
+    url: http://task-service:8082
+  audit-service:
+    url: http://audit-service:8083
+  notification-service:
+    url: http://notification-service:8084
+
+---
+# Test Profile
+spring:
+  config:
+    activate:
+      on-profile: test
+  
+  redis:
+    host: localhost
+    port: 6370  # Different port for tests
+    
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth/**
+        - id: task-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/tasks/**
+        - id: audit-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/audit/**
+
+eureka:
+  client:
+    enabled: false
+
+# Test-specific rate limiting
+rate-limiting:
+  enabled: false 

@@ -1,0 +1,96 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  # Отключаем Redis для этого профиля
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 1000
+    lettuce:
+      pool:
+        max-active: 1
+        max-idle: 1
+        min-idle: 0
+        max-wait: 100
+  
+  # Отключаем автоконфигурацию Redis
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+
+  cloud:
+    gateway:
+      # HTTP Client Configuration
+      httpclient:
+        pool:
+          type: ELASTIC
+          max-connections: 100
+          max-idle-time: 30000
+          max-life-time: 60000
+          acquire-timeout: 10000
+        compression: true
+        response-timeout: 30s
+        connect-timeout: 10s
+        
+      routes:
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-circuit-breaker
+                fallbackUri: forward:/fallback/auth
+                
+        - id: task-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/tasks/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: task-circuit-breaker
+                fallbackUri: forward:/fallback/tasks
+                
+        - id: audit-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: audit-circuit-breaker
+                fallbackUri: forward:/fallback/audit
+
+# Отключаем rate limiting (которое использует Redis)
+rate-limiting:
+  enabled: false
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,gateway,metrics,info
+  endpoint:
+    health:
+      show-details: always
+      
+# Логирование
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    io.github.resilience4j: DEBUG
+    org.springframework.data.redis: WARN
+    
+---
+# Отключаем Eureka для упрощения
+eureka:
+  client:
+    enabled: false 

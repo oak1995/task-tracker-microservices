@@ -1,0 +1,90 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: notification-service
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5435/notificationdb
+    username: notification_user
+    password: notification_password
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME:your-email@gmail.com}
+    password: ${MAIL_PASSWORD:your-app-password}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.tasktracker.notification: DEBUG
+    org.springframework.kafka: INFO
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:mySecretKey}
+  expiration: 86400000
+
+# Notification Configuration
+notification:
+  email:
+    enabled: true
+    from: ${NOTIFICATION_EMAIL_FROM:noreply@tasktracker.com}
+  push:
+    enabled: false
+  templates:
+    cache-ttl: 3600 # 1 hour in seconds 

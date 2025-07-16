@@ -1,0 +1,43 @@
+# Task Service Test Configuration
+spring:
+  application:
+    name: task-service-test
+  
+  # H2 Database для тестов
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: password
+    driver-class-name: org.h2.Driver
+  
+  # JPA Configuration для тестов
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+
+# Server configuration для тестов
+server:
+  port: 0 # Случайный порт для тестов
+
+# JWT Configuration для тестов
+jwt:
+  secret: testSecretKeyForJWT12345678901234567890123456789012345678901234567890TestSecretKey
+  expiration: 3600000 # 1 час для тестов
+
+# Auth Service Configuration для тестов
+auth:
+  service:
+    url: http://localhost:8080/api/v1/auth
+    validate-endpoint: /validate
+
+# Logging configuration для тестов
+logging:
+  level:
+    com.tasktracker.task: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN 

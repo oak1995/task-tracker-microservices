@@ -1,0 +1,79 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: 
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  h2:
+    console:
+      enabled: true
+  
+  redis:
+    host: localhost
+    port: 6379
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-service-test-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: test@example.com
+    password: testpassword
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+eureka:
+  client:
+    enabled: false
+
+logging:
+  level:
+    com.tasktracker.notification: DEBUG
+    org.springframework.kafka: WARN
+    org.springframework.mail: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+# JWT Configuration
+jwt:
+  secret: testSecretKeyForJwtTokenGeneration
+  expiration: 86400000
+
+# Notification Configuration
+notification:
+  email:
+    enabled: false
+    from: test@example.com
+  push:
+    enabled: false
+  templates:
+    cache-ttl: 3600 

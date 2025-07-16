@@ -1,0 +1,108 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: audit-service
+  
+  profiles:
+    active: dev
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5434/audit_db
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: audit-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: '*'
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# JWT Configuration
+jwt:
+  secret: audit-service-secret-key-for-jwt-token-generation-and-validation
+  expiration: 86400000
+  header: Authorization
+  prefix: Bearer
+
+# Auth Service Configuration
+auth:
+  service:
+    url: http://localhost:8081/auth
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# Logging Configuration
+logging:
+  level:
+    com.tasktracker.audit: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/audit-service.log
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://audit-db:5432/audit_db
+  kafka:
+    bootstrap-servers: kafka:9092
+  
+auth:
+  service:
+    url: http://auth-service:8081/auth
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers} 

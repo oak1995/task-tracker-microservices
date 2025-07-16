@@ -1,0 +1,34 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
+        
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# JWT Configuration для тестов
+jwt:
+  secret: testSecretKeyForJWT12345678901234567890123456789012345678901234567890TestSecretKey
+  expiration: 3600000 # 1 час для тестов
+
+# Отключаем лишние логи во время тестов
+logging:
+  level:
+    root: WARN
+    com.tasktracker.auth: DEBUG
+    org.springframework.security: WARN
+    org.hibernate: WARN
+    org.springframework.web: WARN 

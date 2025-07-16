@@ -1,0 +1,330 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  # Spring Cloud Gateway Configuration
+  cloud:
+    gateway:
+      # Global CORS Configuration отключена для избежания дублирования
+      # globalcors:
+      #   cors-configurations:
+      #     '[/**]':
+      #       allowedOriginPatterns: 
+      #         - "http://localhost:*"
+      #         - "http://127.0.0.1:*"
+      #         - "http://host.docker.internal:*"
+      #         - "file://"
+      #         - "null"
+      #         - "http://tasktracker-frontend:*"
+      #       allowedMethods:
+      #         - GET
+      #         - POST
+      #         - PUT
+      #         - DELETE
+      #         - OPTIONS
+      #         - HEAD
+      #         - PATCH
+      #       allowedHeaders:
+      #         - "*"
+      #       allowCredentials: true
+      #       maxAge: 3600
+      
+      # Route Configuration для Docker
+      routes:
+        # Gateway Actuator Endpoints (для собственного actuator)
+        - id: gateway-actuator
+          uri: http://localhost:8080
+          predicates:
+            - Path=/actuator/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/(?<segment>.*)
+                replacement: /actuator/${segment}
+
+        # Auth Service Routes
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-circuit-breaker
+                fallbackUri: forward:/fallback/auth
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+        
+        # Task Service Routes
+        - id: task-service
+          uri: http://task-service:8082
+          predicates:
+            - Path=/tasks/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: task-circuit-breaker
+                fallbackUri: forward:/fallback/tasks
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+        
+        # Audit Service Routes
+        - id: audit-service
+          uri: http://audit-service:8083
+          predicates:
+            - Path=/audit/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: audit-circuit-breaker
+                fallbackUri: forward:/fallback/audit
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+        
+        # Notification Service Routes
+        - id: notification-service
+          uri: http://notification-service:8084
+          predicates:
+            - Path=/notification/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notification-circuit-breaker
+                fallbackUri: forward:/fallback/notification
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY,GATEWAY_TIMEOUT
+                methods: GET,POST
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+      
+      # HTTP Client Configuration
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 10000
+        pool:
+          max-connections: 100
+          max-idle-time: 30000
+          max-life-time: 60000
+          acquire-timeout: 10000
+
+     # Redis Configuration для Docker
+  redis:
+    host: redis
+    port: 6379
+    password: ${REDIS_PASSWORD:}
+    timeout: 2000
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1
+    database: 0
+
+  # Security Configuration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://auth-service:8081/auth
+
+# Eureka Configuration для Docker
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+    enabled: true
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 30
+    heartbeat-executor-thread-pool-size: 5
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90
+    hostname: gateway-service
+    instance-id: gateway-service:${server.port}
+
+# Resilience4J Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      auth-service:
+        register-health-indicator: true
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2000
+        wait-duration-in-open-state: 30000
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        permitted-number-of-calls-in-half-open-state: 3
+      task-service:
+        register-health-indicator: true
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2000
+        wait-duration-in-open-state: 30000
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        permitted-number-of-calls-in-half-open-state: 3
+      audit-service:
+        register-health-indicator: true
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 2000
+        wait-duration-in-open-state: 30000
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        permitted-number-of-calls-in-half-open-state: 3
+  timelimiter:
+    instances:
+      auth-service:
+        timeout-duration: 10000
+        cancel-running-future: true
+      task-service:
+        timeout-duration: 10000
+        cancel-running-future: true
+      audit-service:
+        timeout-duration: 10000
+        cancel-running-future: true
+  retry:
+    instances:
+      auth-service:
+        max-attempts: 3
+        wait-duration: 1000
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+      task-service:
+        max-attempts: 3
+        wait-duration: 1000
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+      audit-service:
+        max-attempts: 3
+        wait-duration: 1000
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - java.net.ConnectException
+          - java.net.SocketTimeoutException
+
+# Rate Limiting Configuration
+rate-limiting:
+  enabled: true
+  default-limit: 100
+  window-size: 60
+  routes:
+    auth-service:
+      limit: 20
+      window-size: 60
+    task-service:
+      limit: 50
+      window-size: 60
+    audit-service:
+      limit: 30
+      window-size: 60
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:gateway-service-secret-key-for-jwt-token-validation}
+  expiration: 86400000
+  header: Authorization
+  prefix: "Bearer "
+
+# Service URLs (fallback if service discovery is not available)
+services:
+  auth-service:
+    url: http://auth-service:8081
+  task-service:
+    url: http://task-service:8082
+  audit-service:
+    url: http://audit-service:8083
+
+# Logging Configuration
+logging:
+  level:
+    com.tasktracker.gateway: INFO
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: WARN
+    org.springframework.cloud.loadbalancer: INFO
+    com.netflix.discovery: WARN
+    io.github.resilience4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%logger{36}] - %msg%n"
+  file:
+    name: /app/logs/gateway-service.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 100MB
+
+# Management Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,circuitbreakers,routes,gateway
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      group:
+        readiness:
+          include: ping,redis
+        liveness:
+          include: ping
+  health:
+    redis:
+      enabled: true
+    circuitbreakers:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: gateway-service
+      environment: docker
+  server:
+    port: 8080 

@@ -1,0 +1,116 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  
+  profiles:
+    active: test-cors
+  
+  cloud:
+    gateway:
+      # Global CORS Configuration с расширенными правами
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: 
+              - "http://localhost:3000"
+              - "http://localhost:3001"
+              - "http://localhost:3002"
+              - "http://127.0.0.1:3000"
+              - "http://127.0.0.1:3001"
+              - "file://"
+              - "null"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - HEAD
+              - PATCH
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+            exposedHeaders:
+              - "Access-Control-Allow-Origin"
+              - "Access-Control-Allow-Methods"
+              - "Access-Control-Allow-Headers"
+              - "Access-Control-Max-Age"
+              - "Access-Control-Allow-Credentials"
+      
+      # Простые маршруты для тестирования
+      routes:
+        # Прямой маршрут для actuator
+        - id: gateway-actuator
+          uri: http://localhost:8080
+          predicates:
+            - Path=/actuator/**
+          filters:
+            - name: RewritePath
+              args:
+                regexp: /actuator/(?<segment>.*)
+                replacement: /actuator/${segment}
+        
+        # Auth Service Routes
+        - id: auth-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/auth/**
+        
+        # Task Service Routes
+        - id: task-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/tasks/**
+        
+        # Audit Service Routes
+        - id: audit-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/audit/**
+        
+        # Notification Service Routes
+        - id: notification-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/notification/**
+
+  # Отключаем Redis для упрощения
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+
+# Отключаем Eureka для упрощения
+eureka:
+  client:
+    enabled: false
+
+# Отключаем OAuth2 для упрощения тестирования
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,beans,configprops
+  endpoint:
+    health:
+      show-details: always
+  security:
+    enabled: false
+
+# Отключаем rate limiting
+rate-limiting:
+  enabled: false
+
+# Логирование для отладки
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.cors: DEBUG
+    org.springframework.security: DEBUG
+    com.tasktracker.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n" 
